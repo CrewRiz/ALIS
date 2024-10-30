@@ -1,6 +1,6 @@
 # AliS
 
-Alis is a sophisticated artificial intelligence system that combines quantum-inspired consciousness, Gödel-based novelty detection, and Lamarckian evolution to create a self-improving AI agent capable of web interaction and complex problem-solving.
+Alis is a sophisticated artificial intelligence system that combines consciousness simulation, Gödel-based novelty detection, and Lamarckian evolution to create a self-improving AI agent capable of web interaction, general computer use, and complex problem-solving.
 
 ## 🌟 Key Features
 
