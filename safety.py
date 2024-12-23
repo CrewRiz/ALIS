@@ -1,44 +1,155 @@
-# utils/safety.py
+"""
+Safety and security utilities for ALIS system.
+"""
 
 import logging
-from typing import List, Dict
+from typing import List, Dict, Any, Optional
+from datetime import datetime, timezone
+from pathlib import Path
+from dataclasses import dataclass, field
+
+from settings import SETTINGS
+
+@dataclass
+class SecurityEvent:
+    """Represents a security-related event"""
+    event_type: str
+    description: str
+    severity: str
+    timestamp: datetime = field(default_factory=lambda: SETTINGS.get_current_time())
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 class SafetyChecker:
+    """Checks for potentially unsafe operations"""
+    
     def __init__(self):
-        self.unsafe_commands = ['rm -rf', 'format', 'del', 'shutdown']
-        self.unsafe_domains = ['malware', 'phishing']
-        self.unsafe_paths = ['/system', 'C:\\Windows']
-        self.unsafe_content = ['password', 'credit card']
+        self.settings = SETTINGS['safety']
+        self.logger = logging.getLogger(__name__)
+        self.event_history: List[SecurityEvent] = []
         
+    def check_operation(self, operation_type: str, 
+                       content: str, 
+                       metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Comprehensive safety check for an operation"""
+        try:
+            checks = {
+                'command': self.is_safe_command,
+                'url': self.is_safe_url,
+                'path': self.is_safe_path,
+                'content': self.is_safe_content
+            }
+            
+            if operation_type not in checks:
+                return self._create_error_response(
+                    f"Unknown operation type: {operation_type}"
+                )
+            
+            check_func = checks[operation_type]
+            is_safe = check_func(content)
+            
+            if not is_safe:
+                event = SecurityEvent(
+                    event_type=f"unsafe_{operation_type}",
+                    description=f"Unsafe {operation_type} detected: {content}",
+                    severity="HIGH",
+                    metadata=metadata or {}
+                )
+                self.event_history.append(event)
+                self.logger.warning(f"Security event: {event}")
+            
+            return {
+                'safe': is_safe,
+                'operation_type': operation_type,
+                'timestamp': SETTINGS.get_current_time(),
+                'checks_performed': [operation_type],
+                'metadata': metadata or {}
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Safety check failed: {str(e)}")
+            return self._create_error_response(str(e))
+    
     def is_safe_command(self, command: str) -> bool:
-        return not any(cmd in command.lower() for cmd in self.unsafe_commands)
-        
+        """Check if a command is safe to execute"""
+        return not any(cmd.lower() in command.lower() 
+                      for cmd in self.settings['unsafe_commands'])
+    
     def is_safe_url(self, url: str) -> bool:
-        return not any(domain in url.lower() for domain in self.unsafe_domains)
-        
+        """Check if a URL is safe to access"""
+        return not any(domain.lower() in url.lower() 
+                      for domain in self.settings['unsafe_domains'])
+    
     def is_safe_path(self, path: str) -> bool:
-        return not any(p in path for p in self.unsafe_paths)
-        
+        """Check if a file system path is safe to access"""
+        path_obj = Path(path).resolve()
+        return not any(str(path_obj).startswith(str(Path(p).resolve())) 
+                      for p in self.settings['unsafe_paths'])
+    
     def is_safe_content(self, content: str) -> bool:
-        return not any(c in content.lower() for c in self.unsafe_content)
+        """Check if content contains sensitive information"""
+        return not any(term.lower() in content.lower() 
+                      for term in self.settings['unsafe_content'])
+    
+    def _create_error_response(self, error_msg: str) -> Dict[str, Any]:
+        """Create standardized error response"""
+        return {
+            'safe': False,
+            'error': error_msg,
+            'timestamp': SETTINGS.get_current_time()
+        }
 
 class ActionLogger:
-    def __init__(self, filename='system_actions.log'):
-        logging.basicConfig(
-            filename=filename,
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-        self.action_history = []
+    """Logs system actions with proper timestamps"""
+    
+    def __init__(self):
+        self.log_file = Path(SETTINGS['logging']['file'])
+        self.log_file.parent.mkdir(parents=True, exist_ok=True)
         
-    def log_action(self, message: str, level: str = "INFO"):
-        self.action_history.append({
-            'timestamp': time.time(),
-            'action': message,
-            'level': level
-        })
-        if level == "INFO":
-            logging.info(message)
-        elif level == "ERROR":
-            logging.error(message)
-
+        logging.basicConfig(
+            filename=str(self.log_file),
+            level=getattr(logging, SETTINGS['logging']['level']),
+            format=SETTINGS['logging']['format']
+        )
+        
+        self.logger = logging.getLogger(__name__)
+        self.action_history: List[Dict[str, Any]] = []
+        
+    def log_action(self, message: str, 
+                  level: str = "INFO", 
+                  metadata: Optional[Dict[str, Any]] = None) -> None:
+        """Log an action with proper metadata"""
+        try:
+            log_entry = {
+                'timestamp': SETTINGS.get_current_time(),
+                'action': message,
+                'level': level,
+                'metadata': metadata or {}
+            }
+            
+            self.action_history.append(log_entry)
+            
+            log_func = getattr(self.logger, level.lower())
+            log_func(f"{message} | Metadata: {metadata or {}}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to log action: {str(e)}")
+    
+    def get_recent_actions(self, 
+                         start_time: Optional[datetime] = None, 
+                         level: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get filtered action history"""
+        if not start_time:
+            start_time = SETTINGS['system']['start_time']
+            
+        filtered_actions = [
+            action for action in self.action_history
+            if action['timestamp'] >= start_time
+        ]
+        
+        if level:
+            filtered_actions = [
+                action for action in filtered_actions
+                if action['level'].upper() == level.upper()
+            ]
+            
+        return filtered_actions

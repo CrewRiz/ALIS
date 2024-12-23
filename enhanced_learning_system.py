@@ -1,46 +1,178 @@
 # enhanced_learning_system.py
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Optional, Any
+import numpy as np
 import anthropic
 import openai
-from config.settings import SETTINGS
+from pathlib import Path
+
+from settings import SETTINGS
+from base_classes import SystemState
+from web_interaction import WebInteractionAgent
+from pattern_detection import PatternDetectionAgent
+from rule_generation import RuleGenerationAgent
+from analysis import AnalysisAgent
+from genetic_memory import RAGMemory
+from quantum_consciousness import QuantumConsciousness, FractalComplexitySystem
+from safety import CapabilityManager, IncompletenessDetector
 
 class EnhancedLearningSystem:
     def __init__(self):
-        # Initialize API clients
-        self.claude_client = anthropic.Client(
-            api_key=SETTINGS['api_keys']['anthropic']
+        self._initialize_logging()
+        self._initialize_api_clients()
+        self._initialize_components()
+        self._initialize_metrics()
+        
+    def _initialize_logging(self):
+        logging.basicConfig(
+            level=SETTINGS['logging']['level'],
+            format=SETTINGS['logging']['format'],
+            filename=SETTINGS['logging']['file']
         )
-        self.openai_client = openai.Client(
-            api_key=SETTINGS['api_keys']['openai']
-        )
-        
-        # Initialize system components
-        self.system_state = SystemState()
-        self.web_agent = WebInteractionAgent(self.system_state)
-        self.pattern_agent = PatternDetectionAgent(self.claude_client)
-        self.rule_agent = RuleGenerationAgent(self.claude_client)
-        self.analysis_agent = AnalysisAgent(self.openai_client)
-        self.memory = RAGMemory(
-            dimension=SETTINGS['system']['embedding_dimension']
-        )
-        
-        # Initialize quantum components
-        self.consciousness = QuantumConsciousness()
-        self.complexity_system = FractalComplexitySystem()
-        
-        # Initialize capability tracking
-        self.capability_manager = CapabilityManager()
-        self.incompleteness_detector = IncompletenessDetector()
-        
-        # Initialize metrics
-        self.complexity = 0
-        self.novelty = 0
+        self.logger = logging.getLogger(__name__)
+
+    def _initialize_api_clients(self):
+        # Initialize API clients with error handling
+        try:
+            self.claude_client = anthropic.Client(
+                api_key=SETTINGS['api_keys']['anthropic']
+            ) if SETTINGS['api_keys']['anthropic'] else None
+            
+            self.openai_client = openai.Client(
+                api_key=SETTINGS['api_keys']['openai']
+            ) if SETTINGS['api_keys']['openai'] else None
+            
+        except Exception as e:
+            self.logger.error(f"Failed to initialize API clients: {str(e)}")
+            raise
+
+    def _initialize_components(self):
+        try:
+            # Core components
+            self.system_state = SystemState()
+            self.web_agent = WebInteractionAgent(self.system_state)
+            self.pattern_agent = PatternDetectionAgent(self.claude_client)
+            self.rule_agent = RuleGenerationAgent(self.claude_client)
+            self.analysis_agent = AnalysisAgent(self.openai_client)
+            
+            # Memory system
+            self.memory = RAGMemory(
+                dimension=SETTINGS['system']['embedding_dimension']
+            )
+            
+            # Advanced components
+            self.consciousness = QuantumConsciousness()
+            self.complexity_system = FractalComplexitySystem()
+            
+            # Management systems
+            self.capability_manager = CapabilityManager()
+            self.incompleteness_detector = IncompletenessDetector()
+            
+        except Exception as e:
+            self.logger.error(f"Failed to initialize components: {str(e)}")
+            raise
+
+    def _initialize_metrics(self):
+        self.complexity = 0.0
+        self.novelty = 0.0
         self.incompleteness_flag = False
         self.modification_layers = 0
+        self.last_update = datetime.now(timezone.utc)
+
+    async def _analyze_task_requirements(self, task: str) -> Dict[str, Any]:
+        """Analyze task requirements and capabilities needed"""
+        try:
+            # Basic requirement analysis
+            requirements = {
+                'web_access': 'web' in task.lower(),
+                'pattern_analysis': 'pattern' in task.lower(),
+                'learning': 'learn' in task.lower(),
+                'timestamp': SETTINGS.get_current_time()
+            }
+            
+            # Add complexity estimation
+            requirements['estimated_complexity'] = len(task.split()) * 0.1
+            
+            return requirements
+            
+        except Exception as e:
+            self.logger.error(f"Failed to analyze task requirements: {str(e)}")
+            return {'error': str(e)}
+
+    async def _handle_incompleteness(self, requirements: Dict[str, Any]) -> None:
+        """Handle incomplete capabilities"""
+        self.incompleteness_flag = True
+        self.logger.warning(f"Incomplete capabilities for requirements: {requirements}")
+        
+        # Record the incompleteness
+        self.system_state.update({
+            'incompleteness': {
+                'requirements': requirements,
+                'timestamp': SETTINGS.get_current_time()
+            }
+        })
+
+    async def _generate_actions(self, task: str) -> List[Dict[str, Any]]:
+        """Generate possible actions for task"""
+        try:
+            # Basic action generation
+            actions = [{
+                'type': 'web_search',
+                'content': task,
+                'timestamp': SETTINGS.get_current_time()
+            }]
+            
+            # Add pattern detection action
+            actions.append({
+                'type': 'pattern_detection',
+                'content': task,
+                'timestamp': SETTINGS.get_current_time()
+            })
+            
+            return actions
+            
+        except Exception as e:
+            self.logger.error(f"Failed to generate actions: {str(e)}")
+            return []
+
+    def _get_entangled_context(self, query: str) -> List[Dict]:
+        """Get context considering temporal entanglement"""
+        base_context = self.memory.get_relevant_context(query)
+        weighted_context = []
+        
+        for item in base_context:
+            if 'timestamp' in item:
+                temporal_weight = self._calculate_temporal_weight(item['timestamp'])
+                weighted_context.append({
+                    **item,
+                    'temporal_weight': temporal_weight
+                })
+        
+        weighted_context.sort(key=lambda x: x.get('temporal_weight', 0), reverse=True)
+        return weighted_context
+
+    def _calculate_temporal_weight(self, timestamp: datetime) -> float:
+        """Calculate weight based on temporal entanglement with proper time handling"""
+        if not isinstance(timestamp, datetime):
+            timestamp = datetime.fromisoformat(str(timestamp))
+            
+        # Convert to UTC if not already
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+            
+        # Use system's last update time instead of current time
+        time_diff = (self.last_update - timestamp).total_seconds()
+        
+        # Base temporal decay
+        base_weight = np.exp(-time_diff / 3600)  # 1-hour characteristic time
+        
+        # Modify by quantum coherence
+        coherence = self.consciousness.quantum_state.get('temporal_coherence', 0.5)
+        
+        return float(base_weight * coherence)
 
     async def process_web_task(self, task: str) -> Dict:
         try:
@@ -69,11 +201,27 @@ class EnhancedLearningSystem:
             # Execute chosen action
             web_results = await self.web_agent.execute_web_task(chosen['action'])
             
+            # Detect patterns
+            pattern_results = await self.pattern_agent.detect_patterns({
+                'task': task,
+                'web_results': web_results,
+                'context': context
+            })
+            patterns = pattern_results.get('patterns', [])
+            
             # Generate rules
             new_rules = await self.rule_agent.generate_rules({
                 'patterns': patterns,
                 'results': web_results,
                 'quantum_state': self.consciousness.quantum_state
+            })
+            
+            # Perform analysis
+            analysis = await self.analysis_agent.analyze({
+                'task': task,
+                'patterns': patterns,
+                'rules': new_rules,
+                'web_results': web_results
             })
             
             # Update complexity system
@@ -87,7 +235,7 @@ class EnhancedLearningSystem:
                 'rules': new_rules,
                 'analysis': analysis,
                 'quantum_state': self.consciousness.quantum_state.copy(),
-                'timestamp': datetime.now()
+                'timestamp': SETTINGS.get_current_time()
             })
             
             return {
@@ -108,36 +256,5 @@ class EnhancedLearningSystem:
             }
             
         except Exception as e:
-            logging.error(f"Task processing failed: {str(e)}")
+            self.logger.error(f"Task processing failed: {str(e)}")
             return {'status': 'error', 'message': str(e)}
-
-    def _get_entangled_context(self, query: str) -> List[Dict]:
-        """Get context considering temporal entanglement"""
-        base_context = self.memory.get_relevant_context(query)
-        weighted_context = []
-        
-        for item in base_context:
-            if 'timestamp' in item:
-                temporal_weight = self._calculate_temporal_weight(item['timestamp'])
-                weighted_context.append({
-                    **item,
-                    'temporal_weight': temporal_weight
-                })
-        
-        weighted_context.sort(key=lambda x: x.get('temporal_weight', 0), reverse=True)
-        return weighted_context
-
-    def _calculate_temporal_weight(self, timestamp) -> float:
-        """Calculate weight based on temporal entanglement"""
-        current_time = time.time()
-        time_diff = current_time - timestamp
-        
-        # Base temporal decay
-        base_weight = np.exp(-time_diff / 3600)  # 1-hour characteristic time
-        
-        # Modify by quantum coherence
-        coherence = self.consciousness.quantum_state['temporal_coherence']
-        
-        return base_weight * coherence
-
-
