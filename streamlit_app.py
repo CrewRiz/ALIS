@@ -1,4 +1,3 @@
-
 """
 Streamlit interface for ALIS system.
 """
@@ -98,117 +97,113 @@ def render_task_interface():
             ["General Query", "Web Interaction", "Pattern Analysis", "Learning Task"]
         )
     with col2:
-        priority = st.slider("Priority", 1, 5, 3)
+        priority = st.select_slider(
+            "Priority",
+            options=["Low", "Medium", "High"],
+            value="Medium"
+        )
     
-    if st.button("Process Task", type="primary"):
-        if task:
-            with st.spinner("Processing your request..."):
-                try:
-                    results = asyncio.run(
-                        st.session_state.system.process_web_task(
-                            task, 
-                            task_type=task_type,
-                            priority=priority
-                        )
-                    )
-                    
-                    # Add to history
-                    st.session_state.task_history.append({
-                        'task': task,
-                        'type': task_type,
-                        'results': results,
-                        'timestamp': SETTINGS.get_current_time()
-                    })
-                    
-                    display_results(results)
-                    
-                except Exception as e:
-                    st.error(f"Error processing task: {str(e)}")
-        else:
-            st.warning("Please enter a task description.")
+    # Advanced options
+    with st.expander("Advanced Options"):
+        col1, col2 = st.columns(2)
+        with col1:
+            complexity = st.slider(
+                "Max Complexity",
+                min_value=1,
+                max_value=1000,
+                value=SETTINGS['system']['max_complexity']
+            )
+        with col2:
+            simulation_depth = st.slider(
+                "Simulation Depth",
+                min_value=1,
+                max_value=10,
+                value=SETTINGS['system']['max_simulation_depth']
+            )
+    
+    # Submit button
+    if st.button("Submit Task"):
+        with st.spinner("Processing task..."):
+            results = asyncio.run(st.session_state.system.process_task(
+                task=task,
+                task_type=task_type,
+                priority=priority,
+                max_complexity=complexity,
+                simulation_depth=simulation_depth
+            ))
+            
+            st.session_state.task_history.append({
+                'task': task,
+                'type': task_type,
+                'results': results,
+                'timestamp': SETTINGS.get_current_time()
+            })
+            
+            display_results(results)
 
 def display_results(results: Dict[str, Any]):
     """Display task results in an organized way"""
-    st.header("Results")
+    st.subheader("Task Results")
     
-    # Main results tabs
-    tabs = st.tabs(["Summary", "Details", "Analysis", "Visualization"])
+    # Main results
+    st.json(results['summary'])
     
-    with tabs[0]:  # Summary
-        st.subheader("Task Summary")
-        if 'web_results' in results:
-            st.info(results['web_results'].get('summary', 'No summary available'))
+    # Patterns found
+    if 'patterns' in results:
+        st.subheader("Patterns Detected")
+        create_pattern_network(results['patterns'])
+    
+    # Actions taken
+    if 'actions' in results:
+        st.subheader("Actions Taken")
+        actions_df = pd.DataFrame(results['actions'])
+        st.dataframe(actions_df)
+    
+    # Quantum state changes
+    if 'quantum_changes' in results:
+        st.subheader("Quantum State Changes")
+        before = results['quantum_changes']['before']
+        after = results['quantum_changes']['after']
         
-        st.subheader("Key Findings")
-        for pattern in results.get('patterns', []):
-            st.write(f"- {pattern.description}")
-    
-    with tabs[1]:  # Details
         col1, col2 = st.columns(2)
         with col1:
-            st.subheader("Generated Rules")
-            for rule in results.get('rules', []):
-                st.code(rule)
-        
+            st.write("Before")
+            st.json(before)
         with col2:
-            st.subheader("System Actions")
-            for action in results.get('actions', []):
-                st.write(f"- {action}")
+            st.write("After")
+            st.json(after)
     
-    with tabs[2]:  # Analysis
-        st.subheader("System Analysis")
-        st.json(results.get('analysis', {}))
-        
-        st.subheader("Complexity Layers")
-        for layer in results.get('complexity_layers', []):
-            with st.expander(f"Layer: {layer['type']}"):
-                st.write(f"Complexity: {layer['complexity']}")
-                st.write("Properties:", layer['properties'])
-    
-    with tabs[3]:  # Visualization
-        st.subheader("Pattern Network")
-        # Create network visualization using plotly
-        if 'patterns' in results:
-            pattern_fig = create_pattern_network(results['patterns'])
-            st.plotly_chart(pattern_fig, use_container_width=True)
+    # Learning progress
+    if 'learning' in results:
+        st.subheader("Learning Progress")
+        st.line_chart(results['learning']['progress'])
 
-def create_pattern_network(patterns: List[Dict[str, Any]]) -> go.Figure:
+def create_pattern_network(patterns: List[Dict[str, Any]]):
     """Create a network visualization of patterns"""
-    if not patterns:
-        return go.Figure()
-        
-    # Create networkx graph
     G = nx.Graph()
     
     # Add nodes
-    for i, pattern in enumerate(patterns):
-        G.add_node(i, 
-                  label=pattern['pattern_type'],
-                  confidence=pattern.get('confidence', 0.5))
+    for pattern in patterns:
+        G.add_node(pattern['id'], 
+                  type=pattern['type'],
+                  confidence=pattern['confidence'])
     
-    # Add edges between related patterns
-    for i, pattern in enumerate(patterns):
-        for j in range(i):
-            if patterns[j]['pattern_type'] in pattern.get('related_patterns', []):
-                G.add_edge(i, j)
+    # Add edges based on relationships
+    for pattern in patterns:
+        if 'related_patterns' in pattern:
+            for related in pattern['related_patterns']:
+                if related in [p['id'] for p in patterns]:
+                    G.add_edge(pattern['id'], 
+                             related,
+                             weight=pattern['relationships'][related])
     
-    # Calculate layout
+    # Create positions
     pos = nx.spring_layout(G)
     
-    # Extract node positions
-    node_x = []
-    node_y = []
-    node_sizes = []
-    node_labels = []
+    # Create figure
+    fig = go.Figure()
     
-    for node in G.nodes():
-        x, y = pos[node]
-        node_x.append(x)
-        node_y.append(y)
-        node_sizes.append(G.nodes[node]['confidence'] * 40)
-        node_labels.append(G.nodes[node]['label'])
-    
-    # Create edges traces
+    # Add edges
     edge_x = []
     edge_y = []
     for edge in G.edges():
@@ -217,10 +212,6 @@ def create_pattern_network(patterns: List[Dict[str, Any]]) -> go.Figure:
         edge_x.extend([x0, x1, None])
         edge_y.extend([y0, y1, None])
     
-    # Create figure
-    fig = go.Figure()
-    
-    # Add edges
     fig.add_trace(go.Scatter(
         x=edge_x, y=edge_y,
         line=dict(width=0.5, color='#888'),
@@ -229,73 +220,88 @@ def create_pattern_network(patterns: List[Dict[str, Any]]) -> go.Figure:
     ))
     
     # Add nodes
+    node_x = []
+    node_y = []
+    node_colors = []
+    node_sizes = []
+    node_text = []
+    
+    for node in G.nodes():
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
+        node_colors.append(G.nodes[node]['confidence'])
+        node_sizes.append(30)
+        node_text.append(f"ID: {node}<br>Type: {G.nodes[node]['type']}<br>Confidence: {G.nodes[node]['confidence']:.2f}")
+    
     fig.add_trace(go.Scatter(
         x=node_x, y=node_y,
-        mode='markers+text',
+        mode='markers',
         hoverinfo='text',
-        text=node_labels,
-        textposition="top center",
+        text=node_text,
         marker=dict(
             showscale=True,
             colorscale='YlGnBu',
+            reversescale=True,
+            color=node_colors,
             size=node_sizes,
+            colorbar=dict(
+                thickness=15,
+                title='Confidence',
+                xanchor='left',
+                titleside='right'
+            ),
             line_width=2
         )
     ))
     
-    # Update layout
     fig.update_layout(
         showlegend=False,
         hovermode='closest',
-        margin=dict(b=20,l=5,r=5,t=40),
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
+        margin=dict(b=20,l=5,r=5,t=40)
     )
     
-    return fig
+    st.plotly_chart(fig, use_container_width=True)
 
 def render_history():
     """Render task history interface"""
     st.header("Task History")
     
     if not st.session_state.task_history:
-        st.info("No tasks processed yet.")
+        st.info("No tasks have been processed yet.")
         return
     
-    # Create history dataframe
-    history_df = pd.DataFrame(st.session_state.task_history)
+    # Convert history to dataframe
+    history_data = []
+    for item in st.session_state.task_history:
+        history_data.append({
+            'Timestamp': item['timestamp'],
+            'Task': item['task'],
+            'Type': item['type'],
+            'Status': item['results']['status']
+        })
     
-    # Filters
-    col1, col2 = st.columns(2)
-    with col1:
-        task_type_filter = st.multiselect(
-            "Filter by Task Type",
-            options=history_df['type'].unique()
-        )
-    with col2:
-        date_range = st.date_input(
-            "Date Range",
-            value=[history_df['timestamp'].min(), history_df['timestamp'].max()]
-        )
+    history_df = pd.DataFrame(history_data)
+    history_df = history_df.sort_values('Timestamp', ascending=False)
     
-    # Apply filters
-    if task_type_filter:
-        history_df = history_df[history_df['type'].isin(task_type_filter)]
+    # Display history table
+    st.dataframe(history_df)
     
-    # Display filtered history
-    st.dataframe(
-        history_df[['timestamp', 'type', 'task']],
-        use_container_width=True
-    )
+    # Task type distribution
+    st.subheader("Task Distribution")
+    task_dist = history_df['Type'].value_counts()
+    st.bar_chart(task_dist)
     
-    # Task details
-    if selected_task := st.selectbox("Select task to view details", history_df['task']):
-        task_data = history_df[history_df['task'] == selected_task].iloc[0]
-        display_results(task_data['results'])
+    # Success rate over time
+    st.subheader("Success Rate Over Time")
+    success_rate = (history_df['Status'] == 'success').rolling(10).mean()
+    st.line_chart(success_rate)
 
 def main():
     """Main application entry point"""
     initialize_session_state()
+    
+    # Render sidebar
     render_sidebar()
     
     # Main content tabs
@@ -303,76 +309,8 @@ def main():
     
     with tab1:
         render_task_interface()
-    
     with tab2:
         render_history()
 
 if __name__ == "__main__":
     main()
-=======
-# interface/streamlit_app.py
-
-import streamlit as st
-import asyncio
-from typing import Dict
-import logging
-from datetime import datetime
-
-from enhanced_learning_system import EnhancedLearningSystem
-
-def create_interface():
-    st.title("Alice - Enhanced Learning System")
-    
-    # Initialize system
-    if 'system' not in st.session_state:
-        st.session_state.system = EnhancedLearningSystem()
-    
-    # System state display
-    st.sidebar.header("System State")
-    system_state = st.session_state.system.system_state.get_summary()
-    st.sidebar.json(system_state)
-    
-    # Quantum state display
-    st.sidebar.header("Quantum State")
-    quantum_state = st.session_state.system.consciousness.quantum_state
-    st.sidebar.json(quantum_state)
-    
-    # Task input
-    st.header("Task Input")
-    task = st.text_area("Enter task description:")
-    
-    if st.button("Process Task"):
-        if task:
-            with st.spinner("Processing task..."):
-                results = asyncio.run(st.session_state.system.process_web_task(task))
-                
-                # Display results
-                st.header("Results")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.subheader("Web Interaction Results")
-                    st.json(results['web_results'])
-                    
-                    st.subheader("Detected Patterns")
-                    st.write(results['patterns'])
-                    
-                with col2:
-                    st.subheader("Generated Rules")
-                    for rule in results['rules']:
-                        st.write(f"- {rule}")
-                    
-                    st.subheader("System Analysis")
-                    st.write(results['analysis'])
-                
-                # Display complexity layers
-                st.header("Complexity Analysis")
-                for layer in st.session_state.system.complexity_system.layers:
-                    st.subheader(f"Layer: {layer.layer_type}")
-                    st.write(f"Complexity Score: {layer.complexity_score}")
-                    st.write(f"Emergent Properties: {layer.emergent_properties}")
-        else:
-            st.warning("Please enter a task description.")
-
-
->>>>>>> f4e70f2f7842b291c7366f2b1a38129785624fb1

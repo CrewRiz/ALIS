@@ -99,57 +99,31 @@ class SafetyChecker:
         }
 
 class ActionLogger:
-    """Logs system actions with proper timestamps"""
+    """Logs system actions and maintains action history"""
     
-    def __init__(self):
-        self.log_file = Path(SETTINGS['logging']['file'])
-        self.log_file.parent.mkdir(parents=True, exist_ok=True)
-        
+    def __init__(self, filename='system_actions.log'):
         logging.basicConfig(
-            filename=str(self.log_file),
-            level=getattr(logging, SETTINGS['logging']['level']),
-            format=SETTINGS['logging']['format']
+            filename=filename,
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
         )
-        
-        self.logger = logging.getLogger(__name__)
         self.action_history: List[Dict[str, Any]] = []
         
-    def log_action(self, message: str, 
-                  level: str = "INFO", 
+    def log_action(self, message: str, level: str = "INFO", 
                   metadata: Optional[Dict[str, Any]] = None) -> None:
-        """Log an action with proper metadata"""
-        try:
-            log_entry = {
-                'timestamp': SETTINGS.get_current_time(),
-                'action': message,
-                'level': level,
-                'metadata': metadata or {}
-            }
-            
-            self.action_history.append(log_entry)
-            
-            log_func = getattr(self.logger, level.lower())
-            log_func(f"{message} | Metadata: {metadata or {}}")
-            
-        except Exception as e:
-            self.logger.error(f"Failed to log action: {str(e)}")
-    
-    def get_recent_actions(self, 
-                         start_time: Optional[datetime] = None, 
-                         level: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get filtered action history"""
-        if not start_time:
-            start_time = SETTINGS['system']['start_time']
-            
-        filtered_actions = [
-            action for action in self.action_history
-            if action['timestamp'] >= start_time
-        ]
+        """Log an action with optional metadata"""
+        log_entry = {
+            'message': message,
+            'level': level,
+            'timestamp': SETTINGS.get_current_time(),
+            'metadata': metadata or {}
+        }
         
-        if level:
-            filtered_actions = [
-                action for action in filtered_actions
-                if action['level'].upper() == level.upper()
-            ]
-            
-        return filtered_actions
+        self.action_history.append(log_entry)
+        
+        if level.upper() == "ERROR":
+            logging.error(message)
+        elif level.upper() == "WARNING":
+            logging.warning(message)
+        else:
+            logging.info(message)

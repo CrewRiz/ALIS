@@ -13,7 +13,7 @@ load_dotenv()
 
 def get_system_time() -> datetime:
     """Get the system time in UTC"""
-    return datetime.fromisoformat("2024-12-23T02:41:04-06:00").astimezone(timezone.utc)
+    return datetime.fromisoformat("2024-12-23T03:08:52-06:00").astimezone(timezone.utc)
 
 class Settings:
     """Global settings singleton"""

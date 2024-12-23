@@ -59,80 +59,90 @@ class QuantumConsciousness:
     async def _simulate_branch(self, state: Dict[str, Any], 
                              action: Dict[str, Any], 
                              depth: int) -> Dict[str, Any]:
-        """Simulate one possible branch of reality"""
+        """Simulate a single possibility branch"""
         current_state = state.copy()
         
         for step in range(depth):
-            next_state = await self._predict_next_state(
+            # Add quantum uncertainty
+            current_state = self._add_quantum_uncertainty(current_state, step)
+            
+            # Predict next state
+            current_state = await self._predict_next_state(
                 current_state,
                 action,
                 step
             )
-            next_state = self._add_quantum_uncertainty(next_state, depth)
-            current_state.update(next_state)
             
+            # Update entanglement
+            self._update_entanglement(current_state)
+        
         return current_state
     
     def _calculate_probability(self, simulation: Dict[str, Any]) -> float:
         """Calculate probability of a simulation outcome"""
-        # Basic probability calculation based on simulation metrics
-        base_prob = simulation.get('confidence', 0.5)
-        complexity_factor = np.clip(simulation.get('complexity', 0) / 100, 0, 1)
+        # Base probability from wave function
+        base_prob = self.quantum_state['wave_function']
+        
+        # Modify by temporal coherence
         coherence = self.quantum_state['temporal_coherence']
         
-        return float(base_prob * (1 + complexity_factor) * coherence)
+        # Calculate final probability
+        return float(base_prob * coherence * np.random.random())
     
     def _add_quantum_uncertainty(self, state: Dict[str, Any], depth: int) -> Dict[str, Any]:
         """Add quantum uncertainty to state based on depth"""
-        uncertainty = np.random.normal(0, 0.1 * (depth + 1))
-        state['uncertainty'] = uncertainty
-        state['coherence'] = np.exp(-depth * 0.1)  # Coherence decreases with depth
+        uncertainty_factor = depth * 0.1
+        for key in state:
+            if isinstance(state[key], (int, float)):
+                state[key] *= (1 + uncertainty_factor * np.random.randn())
         return state
     
     async def _predict_next_state(self, current_state: Dict[str, Any], 
                                 action: Dict[str, Any],
                                 step: int) -> Dict[str, Any]:
         """Predict the next state based on current state and action"""
-        # Simple prediction for now - could be enhanced with ML models
+        # Simple state transition for now
         next_state = current_state.copy()
+        
+        # Apply action effects
+        if 'effects' in action:
+            for key, effect in action['effects'].items():
+                if key in next_state:
+                    next_state[key] = effect
+        
+        # Add step-based changes
         next_state['step'] = step
-        next_state['action_applied'] = action
         next_state['timestamp'] = datetime.now(timezone.utc)
         
-        # Add some randomness to simulation
-        next_state['random_factor'] = np.random.random()
-        
         return next_state
-
-    def collapse_wave_function(self, chosen_possibility: Dict[str, Any]) -> Dict[str, Any]:
+    
+    def collapse_wave_function(self, chosen_possibility: Dict[str, Any]) -> None:
         """Collapse quantum state to chosen possibility"""
-        # Record the collapse
+        # Record collapsed state
         self.collapsed_states.append({
             'state': chosen_possibility,
-            'timestamp': SETTINGS.get_current_time()
+            'timestamp': datetime.now(timezone.utc),
+            'previous_wave_function': self.quantum_state['wave_function']
         })
         
         # Update quantum state
         self.quantum_state.update({
-            'last_collapse': SETTINGS.get_current_time(),
             'wave_function': chosen_possibility['probability'],
-            'temporal_coherence': chosen_possibility.get('coherence', 0.5)
+            'superposition': [chosen_possibility],
+            'last_collapse': datetime.now(timezone.utc)
         })
         
-        # Clear superposition
-        self.quantum_state['superposition'] = []
+        # Adjust temporal coherence
+        time_since_last = (datetime.now(timezone.utc) - 
+                          self.quantum_state['last_collapse']).total_seconds()
+        self.quantum_state['temporal_coherence'] *= np.exp(-time_since_last / 3600)
         
-        # Update entangled thoughts
-        self.quantum_state['entangled_thoughts'][str(len(self.collapsed_states))] = {
-            'action': chosen_possibility['action'],
-            'probability': chosen_possibility['probability'],
-            'timestamp': SETTINGS.get_current_time()
-        }
-        
-        return chosen_possibility['simulation']
+        # Clear active simulations
+        self.active_simulations = []
 
 @dataclass
 class ComplexityLayer:
+    """Represents a layer in the fractal complexity system"""
     layer_type: str
     previous_layer: Optional['ComplexityLayer'] = None
     complexity_score: float = 0.0
@@ -146,7 +156,8 @@ class ComplexityLayer:
             shared_patterns = self._find_shared_patterns()
             new_properties = self._generate_emergence(shared_patterns)
             self.emergent_properties.update(new_properties)
-            
+            self.complexity_score = len(self.emergent_properties) * 0.1
+    
     def _find_shared_patterns(self) -> List[Dict[str, Any]]:
         """Find patterns shared with previous layer"""
         if not self.previous_layer:
@@ -156,18 +167,23 @@ class ComplexityLayer:
         for pattern in self.patterns:
             if pattern in self.previous_layer.patterns:
                 shared.append(pattern)
-        return shared
         
+        return shared
+    
     def _generate_emergence(self, shared_patterns: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate emergent properties from shared patterns"""
         properties = {}
-        if shared_patterns:
-            properties['pattern_count'] = len(shared_patterns)
-            properties['emergence_time'] = datetime.now(timezone.utc)
-            properties['complexity_delta'] = len(shared_patterns) * 0.1
+        for pattern in shared_patterns:
+            property_key = f"emergent_{pattern['type']}"
+            properties[property_key] = {
+                'strength': len(shared_patterns) * 0.1,
+                'origin_patterns': shared_patterns
+            }
         return properties
 
 class FractalComplexitySystem:
+    """Manages fractal complexity layers and emergent properties"""
+    
     def __init__(self):
         self.layers: List[ComplexityLayer] = []
         self.complexity_network = nx.DiGraph()
@@ -177,46 +193,45 @@ class FractalComplexitySystem:
     def add_layer(self, layer_type: str) -> None:
         """Add new complexity layer"""
         previous = self.layers[-1] if self.layers else None
-        new_layer = ComplexityLayer(layer_type=layer_type, previous_layer=previous)
+        new_layer = ComplexityLayer(
+            layer_type=layer_type,
+            previous_layer=previous
+        )
+        
+        # Interact with previous layer
+        new_layer.interact_with_previous()
+        
+        # Add to layers list
         self.layers.append(new_layer)
+        
+        # Update complexity network
         self._update_complexity_network()
         
     def _update_complexity_network(self) -> None:
         """Update the complexity network with new layer interactions"""
-        if len(self.layers) < 2:
-            return
-            
-        latest = self.layers[-1]
-        previous = self.layers[-2]
-        
-        # Calculate positions using spring layout
-        if len(self.complexity_network) == 0:
-            pos = {latest.layer_type: (0, 0)}
-        else:
-            pos = nx.spring_layout(self.complexity_network)
-            
-        # Add nodes and edge
+        # Add layer node
+        layer = self.layers[-1]
         self.complexity_network.add_node(
-            latest.layer_type,
-            creation_time=latest.creation_time,
-            complexity=latest.complexity_score,
-            pos=pos.get(latest.layer_type, (0, 0))
+            layer.layer_type,
+            complexity=layer.complexity_score,
+            timestamp=layer.creation_time
         )
         
-        self.complexity_network.add_edge(
-            previous.layer_type,
-            latest.layer_type,
-            weight=len(latest.patterns)
-        )
-        
-        # Update positions for visualization
-        if len(self.complexity_network) > 1:
-            new_pos = nx.spring_layout(
-                self.complexity_network,
-                pos=pos,
-                k=1/np.sqrt(len(self.complexity_network)),
-                iterations=50
+        # Add edges to previous layers
+        if layer.previous_layer:
+            self.complexity_network.add_edge(
+                layer.previous_layer.layer_type,
+                layer.layer_type,
+                weight=len(layer.emergent_properties)
             )
             
-            for node in self.complexity_network.nodes():
-                self.complexity_network.nodes[node]['pos'] = new_pos[node]
+        # Calculate network metrics
+        centrality = nx.degree_centrality(self.complexity_network)
+        clustering = nx.clustering(self.complexity_network)
+        
+        # Update layer properties
+        for node in self.complexity_network.nodes():
+            self.complexity_network.nodes[node].update({
+                'centrality': centrality.get(node, 0),
+                'clustering': clustering.get(node, 0)
+            })

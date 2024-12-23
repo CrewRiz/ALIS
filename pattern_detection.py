@@ -100,11 +100,11 @@ class PatternDetectionAgent:
             self.logger.error(f"Failed to parse pattern response: {str(e)}")
             return []
     
-    def _create_error_response(self, error_msg: str) -> Dict[str, Any]:
+    def _create_error_response(self, error_message: str) -> Dict[str, Any]:
         """Create standardized error response"""
         return {
             'status': 'error',
-            'error': error_msg,
+            'error': error_message,
             'timestamp': SETTINGS.get_current_time()
         }
     

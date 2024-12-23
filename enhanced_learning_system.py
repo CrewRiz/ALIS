@@ -81,6 +81,8 @@ class EnhancedLearningSystem:
         self.incompleteness_flag = False
         self.modification_layers = 0
         self.last_update = datetime.now(timezone.utc)
+        self.last_complexity = 0.0
+        self.last_novelty = 0.0
 
     async def _analyze_task_requirements(self, task: str) -> Dict[str, Any]:
         """Analyze task requirements and capabilities needed"""
@@ -100,79 +102,7 @@ class EnhancedLearningSystem:
             
         except Exception as e:
             self.logger.error(f"Failed to analyze task requirements: {str(e)}")
-            return {'error': str(e)}
-
-    async def _handle_incompleteness(self, requirements: Dict[str, Any]) -> None:
-        """Handle incomplete capabilities"""
-        self.incompleteness_flag = True
-        self.logger.warning(f"Incomplete capabilities for requirements: {requirements}")
-        
-        # Record the incompleteness
-        self.system_state.update({
-            'incompleteness': {
-                'requirements': requirements,
-                'timestamp': SETTINGS.get_current_time()
-            }
-        })
-
-    async def _generate_actions(self, task: str) -> List[Dict[str, Any]]:
-        """Generate possible actions for task"""
-        try:
-            # Basic action generation
-            actions = [{
-                'type': 'web_search',
-                'content': task,
-                'timestamp': SETTINGS.get_current_time()
-            }]
-            
-            # Add pattern detection action
-            actions.append({
-                'type': 'pattern_detection',
-                'content': task,
-                'timestamp': SETTINGS.get_current_time()
-            })
-            
-            return actions
-            
-        except Exception as e:
-            self.logger.error(f"Failed to generate actions: {str(e)}")
-            return []
-
-    def _get_entangled_context(self, query: str) -> List[Dict]:
-        """Get context considering temporal entanglement"""
-        base_context = self.memory.get_relevant_context(query)
-        weighted_context = []
-        
-        for item in base_context:
-            if 'timestamp' in item:
-                temporal_weight = self._calculate_temporal_weight(item['timestamp'])
-                weighted_context.append({
-                    **item,
-                    'temporal_weight': temporal_weight
-                })
-        
-        weighted_context.sort(key=lambda x: x.get('temporal_weight', 0), reverse=True)
-        return weighted_context
-
-    def _calculate_temporal_weight(self, timestamp: datetime) -> float:
-        """Calculate weight based on temporal entanglement with proper time handling"""
-        if not isinstance(timestamp, datetime):
-            timestamp = datetime.fromisoformat(str(timestamp))
-            
-        # Convert to UTC if not already
-        if timestamp.tzinfo is None:
-            timestamp = timestamp.replace(tzinfo=timezone.utc)
-            
-        # Use system's last update time instead of current time
-        time_diff = (self.last_update - timestamp).total_seconds()
-        
-        # Base temporal decay
-        base_weight = np.exp(-time_diff / 3600)  # 1-hour characteristic time
-        
-        # Modify by quantum coherence
-        coherence = self.consciousness.quantum_state.get('temporal_coherence', 0.5)
-        
-        return float(base_weight * coherence)
+            return {}
 
     async def process_web_task(self, task: str) -> Dict:
         try:
@@ -258,3 +188,39 @@ class EnhancedLearningSystem:
         except Exception as e:
             self.logger.error(f"Task processing failed: {str(e)}")
             return {'status': 'error', 'message': str(e)}
+
+    async def _get_entangled_context(self, query: str) -> List[Dict]:
+        """Get context considering temporal entanglement"""
+        base_context = self.memory.get_relevant_context(query)
+        weighted_context = []
+        
+        for item in base_context:
+            if 'timestamp' in item:
+                temporal_weight = self._calculate_temporal_weight(item['timestamp'])
+                weighted_context.append({
+                    **item,
+                    'temporal_weight': temporal_weight
+                })
+        
+        weighted_context.sort(key=lambda x: x.get('temporal_weight', 0), reverse=True)
+        return weighted_context
+
+    def _calculate_temporal_weight(self, timestamp: datetime) -> float:
+        """Calculate weight based on temporal entanglement with proper time handling"""
+        if not isinstance(timestamp, datetime):
+            timestamp = datetime.fromisoformat(str(timestamp))
+            
+        # Convert to UTC if not already
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+            
+        # Use system's last update time instead of current time
+        time_diff = (self.last_update - timestamp).total_seconds()
+        
+        # Base temporal decay
+        base_weight = np.exp(-time_diff / 3600)  # 1-hour characteristic time
+        
+        # Modify by quantum coherence
+        coherence = self.consciousness.quantum_state.get('temporal_coherence', 0.5)
+        
+        return float(base_weight * coherence)
