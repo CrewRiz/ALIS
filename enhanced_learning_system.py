@@ -7,7 +7,9 @@ from typing import Dict, List, Optional, Any
 import numpy as np
 import anthropic
 import openai
+import google.generativeai as genai
 from pathlib import Path
+from google.cloud import logging as google_logging
 
 from settings import SETTINGS
 from base_classes import SystemState
@@ -27,23 +29,50 @@ class EnhancedLearningSystem:
         self._initialize_metrics()
         
     def _initialize_logging(self):
-        logging.basicConfig(
-            level=SETTINGS['logging']['level'],
-            format=SETTINGS['logging']['format'],
-            filename=SETTINGS['logging']['file']
-        )
-        self.logger = logging.getLogger(__name__)
+        # Set up Google Cloud Logging
+        try:
+            # Instantiates a client
+            logging_client = google_logging.Client()
+            # Connects the logger to the Google Cloud Logging handler
+            logging_client.setup_logging()
+            self.logger = logging.getLogger(__name__)
+            self.logger.info("Google Cloud Logging initialized.")
+        except Exception as e:
+            # Fallback to basic console logging if Google Cloud Logging fails
+            logging.basicConfig(
+                level=SETTINGS['logging'].get('level', 'INFO'), # Keep level from settings
+                format=SETTINGS['logging'].get('format', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            )
+            self.logger = logging.getLogger(__name__)
+            self.logger.error(f"Failed to initialize Google Cloud Logging: {e}. Falling back to basicConfig.")
 
     def _initialize_api_clients(self):
         # Initialize API clients with error handling
         try:
+            # Initialize Claude client (if API key is available)
             self.claude_client = anthropic.Client(
                 api_key=SETTINGS['api_keys']['anthropic']
             ) if SETTINGS['api_keys']['anthropic'] else None
             
+            # Initialize OpenAI client (if API key is available)
             self.openai_client = openai.Client(
                 api_key=SETTINGS['api_keys']['openai']
             ) if SETTINGS['api_keys']['openai'] else None
+            
+            # Initialize Gemini client (if API key is available)
+            if SETTINGS['api_keys'].get('google'):
+                genai.configure(api_key=SETTINGS['api_keys']['google'])
+                # Use a more capable model for agents (pro) and a faster model for simpler tasks (flash)
+                self.gemini_client_pro = genai.GenerativeModel('gemini-1.5-pro')
+                self.gemini_client_flash = genai.GenerativeModel('gemini-1.5-flash')
+                # Default client for backward compatibility
+                self.gemini_client = self.gemini_client_pro
+                self.logger.info("Initialized Gemini clients (pro and flash variants)")
+            else:
+                self.gemini_client_pro = None
+                self.gemini_client_flash = None
+                self.gemini_client = None
+                self.logger.warning("No Google API key found, Gemini clients not initialized")
             
         except Exception as e:
             self.logger.error(f"Failed to initialize API clients: {str(e)}")
@@ -53,18 +82,21 @@ class EnhancedLearningSystem:
         try:
             # Core components
             self.system_state = SystemState()
-            self.web_agent = WebInteractionAgent(self.system_state)
-            self.pattern_agent = PatternDetectionAgent(self.claude_client)
-            self.rule_agent = RuleGenerationAgent(self.claude_client)
-            self.analysis_agent = AnalysisAgent(self.openai_client)
+            self.web_agent = WebInteractionAgent(self.system_state, gemini_client=self.gemini_client_flash)
             
-            # Memory system
+            # Use Gemini client for all agents instead of Claude/OpenAI
+            self.pattern_agent = PatternDetectionAgent(self.gemini_client)
+            self.rule_agent = RuleGenerationAgent(self.gemini_client)
+            self.analysis_agent = AnalysisAgent(self.gemini_client)
+            
+            # Memory system - pass Google API key for Vertex AI integration
             self.memory = RAGMemory(
-                dimension=SETTINGS['system']['embedding_dimension']
+                dimension=SETTINGS['system']['embedding_dimension'],
+                google_api_key=SETTINGS['api_keys'].get('google')
             )
             
-            # Advanced components
-            self.consciousness = QuantumConsciousness()
+            # Advanced components - pass Gemini client for enhanced capabilities
+            self.consciousness = QuantumConsciousness(gemini_client=self.gemini_client)
             self.complexity_system = FractalComplexitySystem()
             
             # Management systems

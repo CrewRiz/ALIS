@@ -42,7 +42,7 @@ class Settings:
                 'confidence_threshold': 0.8,
                 'max_simulation_depth': 5,
                 'max_memory_items': 1000,
-                'embedding_dimension': 1536,
+                'embedding_dimension': 768, # Changed from 1536 to 768 for text-embedding-004
                 'start_time': self.SYSTEM_START_TIME
             },
             
@@ -70,11 +70,19 @@ class Settings:
                 'coherence_threshold': 0.3
             },
             
+            'google_cloud': {
+                'project_id': os.getenv('GOOGLE_CLOUD_PROJECT_ID'),
+                'location': 'us-central1',  # Default region for Vertex AI
+                'index_endpoint_name': os.getenv('VERTEX_INDEX_ENDPOINT'),
+                'index_name': os.getenv('VERTEX_INDEX_NAME'),
+                'deployed_index_id': os.getenv('VERTEX_DEPLOYED_INDEX_ID')
+            },
+            
             'logging': {
                 'level': 'INFO',
-                'file': str(self.BASE_DIR / 'logs' / 'alis.log'),
                 'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                'max_file_size': 10 * 1024 * 1024  # 10MB
+                # 'file': str(self.BASE_DIR / 'logs' / 'alis.log'), # Removed file logging
+                # 'max_file_size': 10 * 1024 * 1024  # 10MB # Removed file size limit
             }
         }
     

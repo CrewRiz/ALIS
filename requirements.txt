@@ -11,3 +11,6 @@ streamlit==1.29.0
 plotly==5.18.0
 pandas==2.1.4
 pillow==10.1.0
+google-generativeai==0.5.2 # Added for Gemini
+google-cloud-logging==3.9.0 # Added for Google Cloud Logging
+google-cloud-aiplatform==1.45.0 # Added for Vertex AI Vector Search
