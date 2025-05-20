@@ -32,8 +32,9 @@ class Settings:
         
         self.config: Dict[str, Any] = {
             'api_keys': {
-                'anthropic': os.getenv('ANTHROPIC_API_KEY'),
-                'openai': os.getenv('OPENAI_API_KEY')
+                # 'anthropic': os.getenv('ANTHROPIC_API_KEY'), # Removed
+                # 'openai': os.getenv('OPENAI_API_KEY'),   # Removed
+                'google': os.getenv('GOOGLE_API_KEY') # Assuming this was already there or added for Gemini
             },
             
             'system': {

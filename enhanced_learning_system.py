@@ -5,8 +5,6 @@ from datetime import datetime, timezone
 import asyncio
 from typing import Dict, List, Optional, Any
 import numpy as np
-import anthropic
-import openai
 import google.generativeai as genai
 from pathlib import Path
 from google.cloud import logging as google_logging
@@ -49,16 +47,6 @@ class EnhancedLearningSystem:
     def _initialize_api_clients(self):
         # Initialize API clients with error handling
         try:
-            # Initialize Claude client (if API key is available)
-            self.claude_client = anthropic.Client(
-                api_key=SETTINGS['api_keys']['anthropic']
-            ) if SETTINGS['api_keys']['anthropic'] else None
-            
-            # Initialize OpenAI client (if API key is available)
-            self.openai_client = openai.Client(
-                api_key=SETTINGS['api_keys']['openai']
-            ) if SETTINGS['api_keys']['openai'] else None
-            
             # Initialize Gemini client (if API key is available)
             if SETTINGS['api_keys'].get('google'):
                 genai.configure(api_key=SETTINGS['api_keys']['google'])
